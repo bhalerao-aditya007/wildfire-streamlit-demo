@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 
 # Streamlit page configuration
 st.set_page_config(page_title="Wildfire Detection", layout="wide")
-
-st.title("🔥 Wildfire Detection Model Demo")
 st.markdown("Upload an image to detect whether it contains a wildfire or not.")
 
 # Sidebar for model path input
@@ -33,7 +31,7 @@ def load_model():
     return tf.keras.models.load_model(model_path)
 
 try:
-    model = load_model(model_path)
+    model = load_model()
     st.sidebar.success("✅ Model loaded successfully!")
 except Exception as e:
     st.error(f"Error loading model: {e}")
@@ -136,10 +134,10 @@ st.markdown("---")
 st.markdown(
     """
     ### How to use:
-    1. Enter the path to your trained model directory in the sidebar
-    2. Upload an image or take a photo using your camera
-    3. The model will predict whether the image contains a wildfire
-    4. View the confidence score and prediction results
+    1.  Upload an image or take a photo using your camera
+    2. The model will predict whether the image contains a wildfire
+    3. View the confidence score and prediction results
     """
 
 )
+
