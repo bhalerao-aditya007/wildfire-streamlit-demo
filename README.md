@@ -1,7 +1,7 @@
 # 🔥 Wildfire Detection Web App
 
 A deep learning–based web application that detects the presence of wildfires in images.  
-Built using **TensorFlow** and **Streamlit**, this app allows users to upload an image and receive a prediction along with confidence scores.
+Built using **TensorFlow**, this app allows users to upload an image and receive a prediction along with confidence scores.
 
 ---
 
@@ -52,3 +52,4 @@ Clone the repository:
 ```bash
 git clone https://github.com/your-username/wildfire-detection-app.git
 cd wildfire-detection-app
+
