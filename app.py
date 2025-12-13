@@ -1,3 +1,4 @@
+import gdown
 import streamlit as st
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
@@ -14,7 +15,11 @@ st.markdown("Upload an image to detect whether it contains a wildfire or not.")
 
 # Sidebar for model path input
 st.sidebar.header("Model Configuration")
+MODEL_URL = "https://drive.google.com/uc?id=16NImzXCLMWDq3dJs6Wn0rl3EpywTItOd"
 model_path = "phase1_best_model.keras"
+if not os.path.exists(model_path):
+    with st.spinner("Downloading model..."):
+        gdown.download(MODEL_URL, model_path, quiet=False)
 
 # Check if model exists
 if not os.path.exists(model_path):
@@ -136,4 +141,5 @@ st.markdown(
     3. The model will predict whether the image contains a wildfire
     4. View the confidence score and prediction results
     """
+
 )
