@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import requests
 from datetime import datetime, timedelta
 import io
+import zipfile
 
 # =======================
 # Page Configuration
@@ -151,7 +152,7 @@ def predict(image_array):
         return None, None, None
 
 # =======================
-# Copernicus Sentinel-2 API Functions
+# Copernicus Sentinel-2 API Functions (FIXED)
 # =======================
 def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
     """Fetch Sentinel-2 image from Copernicus Data Space for a specific location"""
@@ -163,45 +164,32 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
         return None
     
     try:
-        # Define bounding box around the fire location (small area)
-        # ~5km x 5km box
-        bbox_width = 0.05  # ~5km in degrees
-        bbox_height = 0.05
-        
-        lon_min = lon - bbox_width/2
-        lon_max = lon + bbox_width/2
-        lat_min = lat - bbox_height/2
-        lat_max = lat + bbox_height/2
-        
         # Search for Sentinel-2 L2A images
-        search_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+        catalog_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
         
         # Date range
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days_back)
         
         headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {token}"
         }
         
-        # OData filter for Sentinel-2 L2A
+        # FIXED: Simpler OData filter without complex geometry
         filter_str = (
+            f"(Collection/Name eq 'SENTINEL-2') and "
             f"(Name startswith 'S2') and "
-            f"(Attributes/any(a:a/Name eq 'productType' and a/OData.COLLECTION.Cast.Value eq 'S2MSI2A')) and "
-            f"(ContentDate/Start ge {start_date.isoformat()}T00:00:00.000Z) and "
-            f"(ContentDate/Start le {end_date.isoformat()}T23:59:59.999Z) and "
-            f"((Footprint geom_intersects POLYGON(({lon_min} {lat_min},{lon_max} {lat_min},"
-            f"{lon_max} {lat_max},{lon_min} {lat_max},{lon_min} {lat_min}))))"
+            f"(ContentDate/Start gt {start_date.isoformat()}T00:00:00Z) and "
+            f"(ContentDate/Start lt {end_date.isoformat()}T23:59:59Z)"
         )
         
         params = {
             "$filter": filter_str,
-            "$top": 5,
+            "$top": 10,
             "$orderby": "ContentDate/Start desc"
         }
         
-        response = requests.get(search_url, headers=headers, params=params, timeout=15)
+        response = requests.get(catalog_url, headers=headers, params=params, timeout=15)
         response.raise_for_status()
         
         products = response.json().get("value", [])
@@ -220,7 +208,7 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
         download_url = f"https://zipper.dataspace.copernicus.eu/odata/v1/Products({product_id})/$value"
         
         with st.spinner("📥 Downloading Sentinel-2 image..."):
-            response = requests.get(download_url, headers=headers, stream=True, timeout=30)
+            response = requests.get(download_url, headers=headers, stream=True, timeout=60)
             response.raise_for_status()
             
             # Save ZIP temporarily
@@ -230,8 +218,6 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
                     f.write(chunk)
         
         # Extract and process
-        import zipfile
-        
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             # Find the true color image (TCI) or RGB bands
             file_list = zip_ref.namelist()
@@ -245,7 +231,6 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
             
             if tci_file:
                 with zip_ref.open(tci_file) as img_file:
-                    import io
                     img_data = io.BytesIO(img_file.read())
                     image = Image.open(img_data).convert("RGB")
                     return image
@@ -255,6 +240,7 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
     
     except requests.RequestException as e:
         st.error(f"❌ Error fetching Sentinel-2 data: {e}")
+        st.info("💡 Try a different region or check your credentials")
         return None
     except Exception as e:
         st.error(f"❌ Error processing image: {e}")
@@ -586,16 +572,14 @@ with tab3:
         st.markdown("""
         ### 🎯 Purpose
         
-        This application uses Copernicus Sentinel-2 satellite imagery 
-        with AI-powered analysis to help identify and monitor wildfires globally.
+        This application fetches Copernicus Sentinel-2 satellite imagery to 
+        identify and monitor wildfires globally.
         
         ### 🛠️ Technology Stack
         
         - **Frontend**: Streamlit
-        - **AI Model**: TensorFlow/Keras CNN
-        - **Data Source**: Copernicus Sentinel-2
-        - **Image Processing**: PIL, NumPy
-        - **Visualization**: Matplotlib
+        - **AI Model**: Transfer Learning with EfficientNetB4 
+        - **Data Source**: Kaggle
         
         ### 🌟 Features
         
@@ -631,33 +615,9 @@ with tab3:
         - [Get Free Credentials](https://dataspace.copernicus.eu/)
         - [Sentinel-2 Info](https://dataspace.copernicus.eu/data-collections/copernicus-sentinel-data/sentinel-2)
         
-        ### ⚠️ Disclaimer
-        
-        This is a demonstration application. For operational wildfire 
-        monitoring, please consult official sources and emergency services.
-        """)
+
     
-    st.markdown("---")
-    st.markdown("""
-    ### 🚀 Deployment Notes
-    
-    **Requirements for Streamlit Cloud:**
-    ```
-    streamlit
-    tensorflow
-    gdown
-    requests
-    pillow
-    matplotlib
-    numpy
-    ```
-    
-    **How Copernicus Works:**
-    - OAuth2 authentication (secure)
-    - Copernicus provides Sentinel-2 imagery free
-    - 10m resolution perfect for wildfire detection
-    - Global coverage with 5-day revisit time
-    """)
+
 
 # =======================
 # Footer
