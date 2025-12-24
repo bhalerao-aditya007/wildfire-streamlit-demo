@@ -4,4 +4,5 @@ numpy
 pillow
 matplotlib
 gdown
+requests
 
