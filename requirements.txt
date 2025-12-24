@@ -1,8 +1,11 @@
 streamlit
 tensorflow
+keras
 numpy
 pillow
 matplotlib
 gdown
 requests
+zipfile36
+
 
