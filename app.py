@@ -8,6 +8,7 @@ import tensorflow as tf
 from PIL import Image
 import matplotlib.pyplot as plt
 from tensorflow.keras.preprocessing.image import img_to_array
+import gdown
 from sentinelhub import (
     SHConfig,
     SentinelHubRequest,
@@ -31,24 +32,34 @@ st.set_page_config(
 # Constants
 # =======================
 IMG_SIZE = 224
-MODEL_PATH = "best_model.keras"
 CLASS_LABELS = {0: "No Wildfire", 1: "Wildfire"}
 
 # =======================
 # Load Model
 # =======================
+MODEL_URL = "https://drive.google.com/uc?id=1PnOX7t7o2Qqly-3nqVlSLa5LoGApvGjW"
+MODEL_PATH = "best_model.keras"
+
 @st.cache_resource
 def load_model():
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError("Model file not found")
+        with st.spinner("📥 Downloading model from Google Drive (one-time)..."):
+            gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+
     model = tf.keras.models.load_model(MODEL_PATH)
+
+    # sanity check
+    if model.output_shape[-1] != 1:
+        raise ValueError("Model must be binary sigmoid with output shape (*, 1)")
+
     return model
 
 try:
     model = load_model()
 except Exception as e:
-    st.error(f"Model loading failed: {e}")
+    st.error(f"❌ Model loading failed: {e}")
     model = None
+
 
 # =======================
 # Image Preprocessing
@@ -223,3 +234,4 @@ with tab2:
 # =======================
 st.markdown("---")
 st.caption(" Cloud presence depends on acquisition date • Sentinel-2 L2A • Educational use only")
+
