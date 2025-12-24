@@ -436,7 +436,7 @@ with tab1:
                 st.pyplot(fig)
                 plt.close()
 
-                fig = create_moderncard(raw_prob, style=selected_viz)
+                fig = create_modern_card(raw_prob, style=selected_viz)
                 st.pyplot(fig)
                 plt.close()
                 
@@ -549,4 +549,5 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
+
 
