@@ -6,6 +6,4 @@ pillow
 matplotlib
 gdown
 requests
-zipfile36
-
-
+sentinelhub
