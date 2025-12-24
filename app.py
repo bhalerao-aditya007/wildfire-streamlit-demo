@@ -247,79 +247,159 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret):
 # =======================
 # Modern Card Visualization
 # =======================
+# =======================
+# Modern Card Visualization
+# =======================
 def create_confidence_chart(raw_prob):
-    """Create a modern card-style visualization"""
-    fig = plt.figure(figsize=(10, 6))
-    gs = fig.add_gridspec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1],
-                          hspace=0.3, wspace=0.3)
+    """Create a sleek, modern visualization with smooth gradients"""
+    fig = plt.figure(figsize=(12, 7), facecolor='#f8f9fa')
+    gs = fig.add_gridspec(3, 3, width_ratios=[1, 1, 1], height_ratios=[2, 1, 1],
+                          hspace=0.4, wspace=0.3)
     
-    # Main probability display
-    ax_main = fig.add_subplot(gs[0, :])
-    ax_main.axis('off')
+    # Main circular gauge
+    ax_gauge = fig.add_subplot(gs[0, :])
+    ax_gauge.axis('off')
     
-    # Gradient background
-    gradient = np.linspace(0, 1, 256).reshape(1, -1)
-    ax_main.imshow(gradient, extent=[0, 1, 0, 1], aspect='auto', 
-                   cmap='RdYlGn_r', alpha=0.2)
+    # Create smooth circular progress bar
+    theta = np.linspace(0, np.pi, 100)
+    r_outer = 1
+    r_inner = 0.7
     
-    # Probability indicator
-    indicator_x = raw_prob
-    ax_main.axvline(indicator_x, color='black', linewidth=4, ymin=0.2, ymax=0.8)
-    ax_main.plot(indicator_x, 0.5, 'ko', markersize=20)
+    # Background arc (gray)
+    x_bg_outer = r_outer * np.cos(theta)
+    y_bg_outer = r_outer * np.sin(theta)
+    x_bg_inner = r_inner * np.cos(theta)
+    y_bg_inner = r_inner * np.sin(theta)
     
-    # Percentage text
-    ax_main.text(0.5, 0.7, f'{raw_prob*100:.1f}%', 
-                ha='center', fontsize=40, fontweight='bold')
-    ax_main.text(0.5, 0.3, 'WILDFIRE PROBABILITY', 
-                ha='center', fontsize=14, fontweight='bold', color='gray')
+    ax_gauge.fill_between(x_bg_outer, y_bg_outer, 0, alpha=0.1, color='gray')
     
-    ax_main.set_xlim(0, 1)
-    ax_main.set_ylim(0, 1)
+    # Colored progress arc
+    theta_filled = np.linspace(0, np.pi * raw_prob, 100)
+    x_filled_outer = r_outer * np.cos(theta_filled)
+    y_filled_outer = r_outer * np.sin(theta_filled)
+    x_filled_inner = r_inner * np.cos(theta_filled)
+    y_filled_inner = r_inner * np.sin(theta_filled)
     
-    # Risk level box
-    ax_risk = fig.add_subplot(gs[1, 0])
+    # Gradient colors based on probability
+    if raw_prob < 0.3:
+        colors = ['#2ecc71', '#27ae60']
+    elif raw_prob < 0.7:
+        colors = ['#f39c12', '#e67e22']
+    else:
+        colors = ['#e74c3c', '#c0392b']
+    
+    # Create gradient effect
+    for i in range(len(theta_filled)-1):
+        alpha = 0.3 + 0.7 * (i / len(theta_filled))
+        color_idx = int((i / len(theta_filled)) * (len(colors) - 1))
+        ax_gauge.fill_between(
+            [x_filled_outer[i], x_filled_outer[i+1]], 
+            [y_filled_outer[i], y_filled_outer[i+1]], 
+            [x_filled_inner[i], x_filled_inner[i+1]],
+            color=colors[min(color_idx, len(colors)-1)],
+            alpha=alpha
+        )
+    
+    # Center text
+    ax_gauge.text(0, 0.3, f'{raw_prob*100:.1f}%', 
+                ha='center', va='center', fontsize=56, fontweight='bold',
+                color='#2c3e50')
+    ax_gauge.text(0, -0.1, 'WILDFIRE PROBABILITY', 
+                ha='center', va='center', fontsize=13, fontweight='600',
+                color='#7f8c8d', letterSpacing=2)
+    
+    # Pointer/needle
+    angle = np.pi * (1 - raw_prob)
+    needle_length = 0.85
+    ax_gauge.plot([0, needle_length * np.cos(angle)], 
+                 [0, needle_length * np.sin(angle)],
+                 color='#2c3e50', linewidth=4, solid_capstyle='round')
+    ax_gauge.plot(0, 0, 'o', color='#2c3e50', markersize=15)
+    ax_gauge.plot(0, 0, 'o', color='white', markersize=8)
+    
+    ax_gauge.set_xlim(-1.3, 1.3)
+    ax_gauge.set_ylim(-0.3, 1.3)
+    ax_gauge.set_aspect('equal')
+    
+    # Risk Level Card
+    ax_risk = fig.add_subplot(gs[1, :2])
     ax_risk.axis('off')
     
     if raw_prob < 0.3:
-        risk_level = "LOW"
+        risk_level = "LOW RISK"
         risk_color = "#2ecc71"
+        risk_emoji = "✓"
     elif raw_prob < 0.7:
-        risk_level = "MODERATE"
+        risk_level = "MODERATE RISK"
         risk_color = "#f39c12"
+        risk_emoji = "⚠"
     else:
-        risk_level = "HIGH"
+        risk_level = "HIGH RISK"
         risk_color = "#e74c3c"
+        risk_emoji = "⚠"
     
-    ax_risk.add_patch(plt.Rectangle((0.1, 0.2), 0.8, 0.6, 
-                                     facecolor=risk_color, alpha=0.3,
-                                     edgecolor=risk_color, linewidth=3))
-    ax_risk.text(0.5, 0.5, risk_level, ha='center', va='center',
-                fontsize=24, fontweight='bold', color=risk_color)
-    ax_risk.text(0.5, 0.15, 'Risk Level', ha='center', va='center',
-                fontsize=10, color='gray')
+    # Rounded rectangle
+    from matplotlib.patches import FancyBboxPatch
+    rect = FancyBboxPatch((0.05, 0.1), 0.9, 0.8,
+                          boxstyle="round,pad=0.05",
+                          facecolor=risk_color, alpha=0.15,
+                          edgecolor=risk_color, linewidth=3)
+    ax_risk.add_patch(rect)
+    
+    ax_risk.text(0.5, 0.6, risk_emoji, ha='center', va='center',
+                fontsize=40, color=risk_color)
+    ax_risk.text(0.5, 0.3, risk_level, ha='center', va='center',
+                fontsize=20, fontweight='bold', color=risk_color)
     ax_risk.set_xlim(0, 1)
     ax_risk.set_ylim(0, 1)
     
-    # Confidence indicator
-    ax_conf = fig.add_subplot(gs[1, 1])
+    # Confidence Card
+    ax_conf = fig.add_subplot(gs[1, 2])
     ax_conf.axis('off')
     
     confidence = max(raw_prob, 1 - raw_prob)
     conf_color = "#3498db"
     
-    ax_conf.add_patch(plt.Rectangle((0.1, 0.2), 0.8, 0.6, 
-                                     facecolor=conf_color, alpha=0.3,
-                                     edgecolor=conf_color, linewidth=3))
-    ax_conf.text(0.5, 0.5, f'{confidence*100:.0f}%', ha='center', va='center',
-                fontsize=24, fontweight='bold', color=conf_color)
-    ax_conf.text(0.5, 0.15, 'Model Confidence', ha='center', va='center',
-                fontsize=10, color='gray')
+    rect_conf = FancyBboxPatch((0.05, 0.1), 0.9, 0.8,
+                               boxstyle="round,pad=0.05",
+                               facecolor=conf_color, alpha=0.15,
+                               edgecolor=conf_color, linewidth=3)
+    ax_conf.add_patch(rect_conf)
+    
+    ax_conf.text(0.5, 0.6, f'{confidence*100:.0f}%', ha='center', va='center',
+                fontsize=28, fontweight='bold', color=conf_color)
+    ax_conf.text(0.5, 0.25, 'Confidence', ha='center', va='center',
+                fontsize=11, color='#7f8c8d', fontweight='600')
     ax_conf.set_xlim(0, 1)
     ax_conf.set_ylim(0, 1)
     
+    # Horizontal probability bar
+    ax_bar = fig.add_subplot(gs[2, :])
+    ax_bar.axis('off')
+    
+    # Create smooth gradient bar
+    bar_gradient = np.linspace(0, 1, 256).reshape(1, -1)
+    ax_bar.imshow(bar_gradient, extent=[0, 1, 0, 1], aspect='auto',
+                  cmap='RdYlGn_r', alpha=0.4)
+    
+    # Current position marker
+    ax_bar.axvline(raw_prob, color='#2c3e50', linewidth=3, alpha=0.8)
+    ax_bar.plot(raw_prob, 0.5, 'o', color='#2c3e50', markersize=14, 
+               markeredgecolor='white', markeredgewidth=2)
+    
+    # Labels
+    ax_bar.text(0, -0.3, 'Safe', ha='left', va='top', fontsize=10, 
+               color='#27ae60', fontweight='600')
+    ax_bar.text(1, -0.3, 'Danger', ha='right', va='top', fontsize=10,
+               color='#c0392b', fontweight='600')
+    ax_bar.text(0.5, -0.3, 'Threshold', ha='center', va='top', fontsize=10,
+               color='#7f8c8d', fontweight='600')
+    
+    ax_bar.set_xlim(-0.05, 1.05)
+    ax_bar.set_ylim(-0.5, 1.5)
+    
     plt.tight_layout()
     return fig
-
 def show_image_comparison(original, processed):
     """Show original vs processed image"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -520,3 +600,4 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
+
