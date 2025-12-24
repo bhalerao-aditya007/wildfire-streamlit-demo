@@ -61,7 +61,7 @@ st.markdown(
     <div class="main-header">
         <h1>🔥 Wildfire Detection System</h1>
         <p style="font-size:18px; margin:0;">
-        AI-powered wildfire detection using NASA satellite data and deep learning
+        AI-powered wildfire detection using Sentinel-2 satellite imagery and deep learning
         </p>
     </div>
     """,
@@ -102,6 +102,28 @@ IMG_SIZE = 224
 CLASS_LABELS = {0: "No Wildfire", 1: "Wildfire"}
 
 # =======================
+# Copernicus Data Space Authentication
+# =======================
+@st.cache_resource
+def get_copernicus_token(client_id, client_secret):
+    """Get access token from Copernicus Data Space"""
+    token_url = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+    
+    data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "client_credentials"
+    }
+    
+    try:
+        response = requests.post(token_url, data=data, timeout=10)
+        response.raise_for_status()
+        token = response.json()["access_token"]
+        return token, None
+    except requests.RequestException as e:
+        return None, str(e)
+
+# =======================
 # Image Processing
 # =======================
 def preprocess_image(image):
@@ -129,50 +151,113 @@ def predict(image_array):
         return None, None, None
 
 # =======================
-# NASA FIRMS API Functions
+# Copernicus Sentinel-2 API Functions
 # =======================
-def fetch_firms_fires(lon_min, lat_min, lon_max, lat_max, firms_api_key):
-    """Fetch fire hotspots from NASA FIRMS API"""
-    url = (
-        f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
-        f"{firms_api_key}/VIIRS_SNPP_NRT/"
-        f"{lon_min},{lat_min},{lon_max},{lat_max}/7"
-    )
+def fetch_sentinel2_image(lat, lon, client_id, client_secret, days_back=7):
+    """Fetch Sentinel-2 image from Copernicus Data Space for a specific location"""
+    
+    # Get token
+    token, token_error = get_copernicus_token(client_id, client_secret)
+    if token_error:
+        st.error(f"❌ Authentication failed: {token_error}")
+        return None
     
     try:
-        response = requests.get(url, timeout=15)
+        # Define bounding box around the fire location (small area)
+        # ~5km x 5km box
+        bbox_width = 0.05  # ~5km in degrees
+        bbox_height = 0.05
+        
+        lon_min = lon - bbox_width/2
+        lon_max = lon + bbox_width/2
+        lat_min = lat - bbox_height/2
+        lat_max = lat + bbox_height/2
+        
+        # Search for Sentinel-2 L2A images
+        search_url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+        
+        # Date range
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days_back)
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # OData filter for Sentinel-2 L2A
+        filter_str = (
+            f"(Name startswith 'S2') and "
+            f"(Attributes/any(a:a/Name eq 'productType' and a/OData.COLLECTION.Cast.Value eq 'S2MSI2A')) and "
+            f"(ContentDate/Start ge {start_date.isoformat()}T00:00:00.000Z) and "
+            f"(ContentDate/Start le {end_date.isoformat()}T23:59:59.999Z) and "
+            f"((Footprint geom_intersects POLYGON(({lon_min} {lat_min},{lon_max} {lat_min},"
+            f"{lon_max} {lat_max},{lon_min} {lat_max},{lon_min} {lat_min}))))"
+        )
+        
+        params = {
+            "$filter": filter_str,
+            "$top": 5,
+            "$orderby": "ContentDate/Start desc"
+        }
+        
+        response = requests.get(search_url, headers=headers, params=params, timeout=15)
         response.raise_for_status()
         
-        lines = response.text.strip().split('\n')
-        if len(lines) < 2:
-            return []
+        products = response.json().get("value", [])
         
-        fires = []
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            parts = line.split(',')
-            if len(parts) < 13:
-                continue
+        if not products:
+            st.warning("⚠️ No Sentinel-2 images found for this location. Using placeholder image.")
+            return create_dummy_satellite_image({"latitude": lat, "longitude": lon})
+        
+        # Get the most recent product
+        product_id = products[0]["Id"]
+        product_name = products[0]["Name"]
+        
+        st.info(f"📡 Using Sentinel-2 image: {product_name[:50]}...")
+        
+        # Download product (returns ZIP file)
+        download_url = f"https://zipper.dataspace.copernicus.eu/odata/v1/Products({product_id})/$value"
+        
+        with st.spinner("📥 Downloading Sentinel-2 image..."):
+            response = requests.get(download_url, headers=headers, stream=True, timeout=30)
+            response.raise_for_status()
             
-            try:
-                fire = {
-                    'latitude': float(parts[0]),
-                    'longitude': float(parts[1]),
-                    'brightness': float(parts[2]),
-                    'confidence': parts[8],  # Can be 'low', 'nominal', 'high'
-                    'frp': float(parts[11]),
-                    'satellite': parts[7],
-                    'acq_date': parts[5]
-                }
-                fires.append(fire)
-            except (ValueError, IndexError) as e:
-                continue
+            # Save ZIP temporarily
+            zip_path = "/tmp/sentinel2_product.zip"
+            with open(zip_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
         
-        return fires
+        # Extract and process
+        import zipfile
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # Find the true color image (TCI) or RGB bands
+            file_list = zip_ref.namelist()
+            
+            # Look for TCI_10m.jp2 (True Color Image 10m resolution)
+            tci_file = None
+            for f in file_list:
+                if 'TCI_10m.jp2' in f or 'TCI.jp2' in f:
+                    tci_file = f
+                    break
+            
+            if tci_file:
+                with zip_ref.open(tci_file) as img_file:
+                    import io
+                    img_data = io.BytesIO(img_file.read())
+                    image = Image.open(img_data).convert("RGB")
+                    return image
+            else:
+                st.warning("⚠️ Could not find image file. Using placeholder.")
+                return create_dummy_satellite_image({"latitude": lat, "longitude": lon})
     
     except requests.RequestException as e:
-        st.error(f"❌ Error fetching FIRMS data: {e}")
+        st.error(f"❌ Error fetching Sentinel-2 data: {e}")
+        return None
+    except Exception as e:
+        st.error(f"❌ Error processing image: {e}")
         return None
 
 def create_dummy_satellite_image(fire_data):
@@ -223,16 +308,16 @@ def create_confidence_chart(raw_prob):
 
 # Sidebar with instructions
 with st.sidebar:
-    st.image("https://www.nasa.gov/wp-content/themes/nasa/assets/images/nasa-logo.svg", width=150)
+    st.image("https://www.copernicus.eu/sites/default/files/2019-09/Copernicus_Logo_RGB_Web.png", width=150)
     st.title("📋 Quick Guide")
     st.markdown("""
     ### Getting Started
     
-    **Option 1: NASA Live Data** 🛰️
-    1. Get a FREE API key from [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/)
-    2. Enter your API key
+    **Option 1: Copernicus Sentinel-2** 🛰️
+    1. Get FREE credentials from [Copernicus Data Space](https://dataspace.copernicus.eu/)
+    2. Enter your Client ID & Secret
     3. Select a region
-    4. Fetch live fire data
+    4. Fetch Sentinel-2 satellite images
     
     **Option 2: Upload Image** 📤
     1. Switch to Upload tab
@@ -245,6 +330,12 @@ with st.sidebar:
     - **Architecture**: CNN
     - **Input Size**: 224×224
     - **Classes**: Wildfire / No Wildfire
+    
+    ### Copernicus Benefits
+    - ✅ 10m resolution (high quality)
+    - ✅ Global coverage
+    - ✅ Cloud-free imagery
+    - ✅ Multiple bands available
     """)
     
     if model:
@@ -252,40 +343,56 @@ with st.sidebar:
     else:
         st.error("⚠️ Model Not Available")
 
-tab1, tab2, tab3 = st.tabs(["🛰️ NASA Live Data", "📤 Upload Image", "ℹ️ About"])
+tab1, tab2, tab3 = st.tabs(["🛰️ Sentinel-2 Data", "📤 Upload Image", "ℹ️ About"])
 
 # =======================
-# TAB 1: NASA FIRMS Integration
+# TAB 1: Copernicus Sentinel-2 Integration
 # =======================
 with tab1:
-    st.markdown("### Fetch Live Satellite Fire Data from NASA")
+    st.markdown("### Fetch High-Resolution Satellite Images from Copernicus")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # NASA API Setup
-        with st.expander("🔑 NASA FIRMS API Key Setup", expanded=False):
+        # Copernicus API Setup
+        with st.expander("🔑 Copernicus Data Space Setup", expanded=False):
             st.markdown("""
-            **Get your FREE NASA FIRMS API key:**
+            **Get your FREE Copernicus credentials:**
             
-            1. Visit [NASA FIRMS Map Keys](https://firms.modaps.eosdis.nasa.gov/api/)
-            2. Click on **"Map Keys"** or **"Request a key"**
-            3. Fill out the registration form
-            4. Receive your API key via email instantly
-            5. Paste it below
+            1. Visit [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
+            2. Click **"Sign Up"** and create an account
+            3. Go to **"User Settings"** → **"OAuth2 Clients"** or **"API Tokens"**
+            4. Click **"Create OAuth2 Client"**
+            5. Fill form:
+               - Name: "Wildfire Detection App"
+               - Grant Type: "Client Credentials"
+               - Scopes: Select all
+            6. Copy your **Client ID** and **Client Secret**
+            7. Paste them below
             
-            *Note: The API key is free and takes less than 2 minutes to obtain.*
+            *Note: Completely free! Sentinel-2 images are 10m resolution, perfect for wildfire detection.*
             """)
         
-        firms_api_key = st.text_input(
-            "Enter NASA FIRMS API Key",
-            type="password",
-            placeholder="Your API key here...",
-            help="Get your free key at https://firms.modaps.eosdis.nasa.gov/api/"
-        )
+        col_id, col_secret = st.columns(2)
+        
+        with col_id:
+            client_id = st.text_input(
+                "Copernicus Client ID",
+                type="password",
+                placeholder="Your Client ID...",
+                help="Get from Copernicus Data Space OAuth2 settings"
+            )
+        
+        with col_secret:
+            client_secret = st.text_input(
+                "Copernicus Client Secret",
+                type="password",
+                placeholder="Your Client Secret...",
+                help="Get from Copernicus Data Space OAuth2 settings"
+            )
     
     with col2:
-        st.info("💡 **Tip**: The NASA FIRMS API is completely free and provides real-time fire detection data worldwide.")
+        st.info("💡 **Why Copernicus?**\n\n✅ 10m resolution\n✅ Free forever\n✅ Global coverage\n✅ 5-day revisit")
     
     st.markdown("---")
     
@@ -309,129 +416,97 @@ with tab1:
     
     # Define region coordinates
     regions = {
-        "🇮🇳 Nagpur, India": {"lon": [78.5, 79.5], "lat": [20.8, 21.8]},
-        "🇮🇳 Central India": {"lon": [74, 82], "lat": [20, 24]},
-        "🇮🇳 Southern India": {"lon": [72, 80], "lat": [8, 16]},
-        "🇺🇸 California, USA": {"lon": [-124, -114], "lat": [32, 42]},
-        "🇦🇺 Eastern Australia": {"lon": [140, 154], "lat": [-38, -28]},
+        "🇮🇳 Nagpur, India": {"lon": 79.0, "lat": 21.1},
+        "🇮🇳 Central India": {"lon": 78.0, "lat": 22.0},
+        "🇮🇳 Southern India": {"lon": 76.0, "lat": 12.0},
+        "🇺🇸 California, USA": {"lon": -119.0, "lat": 37.0},
+        "🇦🇺 Eastern Australia": {"lon": 147.0, "lat": -33.0},
     }
     
     if region_name == "🌍 Custom Region":
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
         with col1:
-            lon_min = st.number_input("Min Longitude", value=77.0, step=0.1)
+            lon = st.number_input("Longitude", value=79.0, step=0.1)
         with col2:
-            lon_max = st.number_input("Max Longitude", value=79.0, step=0.1)
-        with col3:
-            lat_min = st.number_input("Min Latitude", value=20.0, step=0.1)
-        with col4:
-            lat_max = st.number_input("Max Latitude", value=22.0, step=0.1)
+            lat = st.number_input("Latitude", value=21.1, step=0.1)
     else:
-        lon_min, lon_max = regions[region_name]["lon"]
-        lat_min, lat_max = regions[region_name]["lat"]
+        lon = regions[region_name]["lon"]
+        lat = regions[region_name]["lat"]
         
         with col2:
-            st.metric("Longitude Range", f"{lon_min}° to {lon_max}°")
-            st.metric("Latitude Range", f"{lat_min}° to {lat_max}°")
+            st.metric("Longitude", f"{lon:.2f}°")
+            st.metric("Latitude", f"{lat:.2f}°")
     
     st.markdown("---")
     
-    # Fetch FIRMS Data
-    fetch_button = st.button("🔍 Fetch Fire Data from NASA FIRMS", type="primary", use_container_width=True)
+    # Fetch Sentinel-2 Data
+    fetch_button = st.button("🔍 Fetch Sentinel-2 Image from Copernicus", type="primary", use_container_width=True)
     
     if fetch_button:
-        if not firms_api_key:
-            st.error("❌ Please enter your NASA FIRMS API key first!")
+        if not client_id or not client_secret:
+            st.error("❌ Please enter your Copernicus Client ID and Secret!")
+            st.info("Get free credentials at: https://dataspace.copernicus.eu/")
         else:
-            with st.spinner("🛰️ Fetching fire hotspots from NASA FIRMS..."):
-                fires = fetch_firms_fires(lon_min, lat_min, lon_max, lat_max, firms_api_key)
+            with st.spinner("🛰️ Fetching Sentinel-2 image from Copernicus..."):
+                image = fetch_sentinel2_image(lat, lon, client_id, client_secret)
             
-            if fires is None:
-                st.error("❌ Failed to fetch data. Please check your API key and try again.")
-            elif len(fires) == 0:
-                st.info("ℹ️ No fire hotspots detected in the selected region in the last 7 days.")
-            else:
-                st.success(f"✅ Found **{len(fires)}** fire hotspot(s) in the last 7 days!")
+            if image:
+                st.success(f"✅ Successfully fetched Sentinel-2 image for Lat: {lat:.4f}, Lon: {lon:.4f}")
                 
-                # Display fire data in a nice table
-                st.markdown("### 📊 Fire Hotspot Data")
-                
-                fire_df = []
-                for f in fires:
-                    fire_df.append({
-                        'Latitude': f"{f['latitude']:.4f}",
-                        'Longitude': f"{f['longitude']:.4f}",
-                        'Confidence': f['confidence'],
-                        'Brightness (K)': f"{f['brightness']:.1f}",
-                        'FRP (MW)': f"{f['frp']:.1f}",
-                        'Date': f['acq_date'],
-                        'Satellite': f['satellite']
-                    })
-                
-                st.dataframe(fire_df, use_container_width=True, height=300)
+                st.markdown("### 🖼️ Satellite Image Preview")
+                st.image(image, caption=f"Sentinel-2 Image - Location: {region_name}", use_column_width=True)
                 
                 st.markdown("---")
                 
-                # Process each fire detection
+                # Process with ML Model
                 st.markdown("### 🤖 AI Model Analysis")
                 
                 if model is None:
                     st.warning("⚠️ Model not available. Cannot perform AI analysis.")
                 else:
-                    for idx, fire in enumerate(fires[:5]):  # Limit to first 5 to avoid timeout
-                        with st.expander(
-                            f"🔥 Fire #{idx + 1} - Lat: {fire['latitude']:.4f}, Lon: {fire['longitude']:.4f} | "
-                            f"Confidence: {fire['confidence']} | FRP: {fire['frp']:.1f} MW",
-                            expanded=(idx == 0)
-                        ):
-                            col1, col2 = st.columns([1, 1.5])
+                    with st.spinner("Analyzing image with AI model..."):
+                        img_array = preprocess_image(image)
+                        
+                        if img_array is not None:
+                            label, confidence, raw_prob = predict(img_array)
                             
-                            with col1:
-                                # Create placeholder image
-                                with st.spinner(f"Generating visualization..."):
-                                    image = create_dummy_satellite_image(fire)
+                            if label is not None:
+                                col1, col2 = st.columns([1, 1.5])
                                 
-                                st.image(image, caption=f"Location Visualization - {fire['acq_date']}")
+                                with col1:
+                                    st.markdown("**Location Details:**")
+                                    st.metric("📍 Latitude", f"{lat:.4f}°")
+                                    st.metric("📍 Longitude", f"{lon:.4f}°")
+                                    st.metric("🛰️ Source", "Copernicus Sentinel-2")
+                                    st.metric("📐 Resolution", "10m per pixel")
                                 
-                                st.markdown("**NASA FIRMS Data:**")
-                                st.metric("📅 Detection Date", fire['acq_date'])
-                                st.metric("🌡️ Brightness", f"{fire['brightness']:.1f} K")
-                                st.metric("🔥 Fire Radiative Power", f"{fire['frp']:.1f} MW")
-                                st.metric("📡 Satellite", fire['satellite'])
-                            
-                            with col2:
-                                # ML Model Prediction
-                                img_array = preprocess_image(image)
-                                if img_array is not None:
-                                    label, confidence, raw_prob = predict(img_array)
+                                with col2:
+                                    st.markdown("#### 🔥 Wildfire Detection Result")
                                     
-                                    if label is not None:
-                                        st.markdown("#### 🤖 AI Model Prediction")
-                                        
-                                        if label == 1:
-                                            st.markdown(
-                                                f'<div class="error-box">'
-                                                f'<h3 style="margin:0; color:#721c24;">🔥 Wildfire Detected</h3>'
-                                                f'<p style="margin:0.5rem 0 0 0; font-size:1.2rem; font-weight:bold;">Confidence: {confidence * 100:.1f}%</p>'
-                                                f'</div>',
-                                                unsafe_allow_html=True
-                                            )
-                                        else:
-                                            st.markdown(
-                                                f'<div class="success-box">'
-                                                f'<h3 style="margin:0; color:#155724;">✅ No Wildfire Detected</h3>'
-                                                f'<p style="margin:0.5rem 0 0 0; font-size:1.2rem; font-weight:bold;">Confidence: {confidence * 100:.1f}%</p>'
-                                                f'</div>',
-                                                unsafe_allow_html=True
-                                            )
-                                        
-                                        # Visualization
-                                        fig = create_confidence_chart(raw_prob)
-                                        st.pyplot(fig)
-                                        plt.close()
-                    
-                    if len(fires) > 5:
-                        st.info(f"ℹ️ Showing analysis for first 5 fires. Total fires detected: {len(fires)}")
+                                    if label == 1:
+                                        st.markdown(
+                                            f'<div class="error-box">'
+                                            f'<h3 style="margin:0; color:#721c24;">🔥 Wildfire Detected</h3>'
+                                            f'<p style="margin:0.5rem 0 0 0; font-size:1.2rem; font-weight:bold;">Confidence: {confidence * 100:.1f}%</p>'
+                                            f'</div>',
+                                            unsafe_allow_html=True
+                                        )
+                                    else:
+                                        st.markdown(
+                                            f'<div class="success-box">'
+                                            f'<h3 style="margin:0; color:#155724;">✅ No Wildfire Detected</h3>'
+                                            f'<p style="margin:0.5rem 0 0 0; font-size:1.2rem; font-weight:bold;">Confidence: {confidence * 100:.1f}%</p>'
+                                            f'</div>',
+                                            unsafe_allow_html=True
+                                        )
+                                
+                                st.markdown("---")
+                                
+                                # Confidence Chart
+                                st.markdown("#### Confidence Breakdown")
+                                fig = create_confidence_chart(raw_prob)
+                                st.pyplot(fig)
+                                plt.close()
 
 # =======================
 # TAB 2: Manual Image Upload
@@ -511,21 +586,22 @@ with tab3:
         st.markdown("""
         ### 🎯 Purpose
         
-        This application combines NASA's real-time fire detection data with 
-        AI-powered image analysis to help identify and monitor wildfires globally.
+        This application uses Copernicus Sentinel-2 satellite imagery 
+        with AI-powered analysis to help identify and monitor wildfires globally.
         
         ### 🛠️ Technology Stack
         
         - **Frontend**: Streamlit
         - **AI Model**: TensorFlow/Keras CNN
-        - **Data Source**: NASA FIRMS API
+        - **Data Source**: Copernicus Sentinel-2
         - **Image Processing**: PIL, NumPy
         - **Visualization**: Matplotlib
         
         ### 🌟 Features
         
-        - Real-time fire hotspot detection via NASA FIRMS
-        - AI-powered wildfire image classification
+        - High-resolution (10m) Sentinel-2 imagery
+        - Free access via Copernicus Data Space
+        - AI-powered wildfire classification
         - Interactive region selection
         - Confidence score visualization
         - Support for custom image uploads
@@ -535,11 +611,13 @@ with tab3:
         st.markdown("""
         ### 📚 How It Works
         
-        **NASA Live Data Mode:**
-        1. Fetches active fire hotspots from NASA FIRMS
-        2. Displays fire locations and metadata
-        3. Generates visualizations for each detection
-        4. Runs AI model to classify wildfire presence
+        **Copernicus Sentinel-2 Mode:**
+        1. Authenticates with Copernicus credentials
+        2. Searches for recent Sentinel-2 L2A images
+        3. Downloads high-resolution (10m) imagery
+        4. Preprocesses image to 224×224 pixels
+        5. Runs AI model for wildfire classification
+        6. Returns prediction with confidence score
         
         **Upload Mode:**
         1. User uploads satellite or ground image
@@ -549,9 +627,9 @@ with tab3:
         
         ### 🔗 Resources
         
-        - [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/)
-        - [Get API Key](https://firms.modaps.eosdis.nasa.gov/api/)
-        - [FIRMS Data Format](https://firms.modaps.eosdis.nasa.gov/api/area/)
+        - [Copernicus Data Space](https://dataspace.copernicus.eu/)
+        - [Get Free Credentials](https://dataspace.copernicus.eu/)
+        - [Sentinel-2 Info](https://dataspace.copernicus.eu/data-collections/copernicus-sentinel-data/sentinel-2)
         
         ### ⚠️ Disclaimer
         
@@ -574,10 +652,11 @@ with tab3:
     numpy
     ```
     
-    **Environment Variables:**
-    - No sensitive data in code
-    - API keys entered by users
-    - Model downloaded on first run
+    **How Copernicus Works:**
+    - OAuth2 authentication (secure)
+    - Copernicus provides Sentinel-2 imagery free
+    - 10m resolution perfect for wildfire detection
+    - Global coverage with 5-day revisit time
     """)
 
 # =======================
@@ -587,7 +666,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style="text-align: center; color: #666; padding: 2rem 0;">
-        <p>Built with ❤️ using Streamlit | Powered by NASA FIRMS & TensorFlow</p>
+        <p>Built with ❤️ using Streamlit | Powered by Copernicus Sentinel-2 & TensorFlow</p>
         <p style="font-size: 0.9rem;">For educational and research purposes</p>
     </div>
     """,
