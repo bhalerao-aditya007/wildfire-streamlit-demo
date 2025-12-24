@@ -245,9 +245,9 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret):
     return Image.fromarray(data[0])
 
 # =======================
-# Enhanced Visualization
+# Modern Card Visualization
 # =======================
-def create_modern_card(raw_prob):
+def create_confidence_chart(raw_prob):
     """Create a modern card-style visualization"""
     fig = plt.figure(figsize=(10, 6))
     gs = fig.add_gridspec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1],
@@ -320,32 +320,6 @@ def create_modern_card(raw_prob):
     plt.tight_layout()
     return fig
 
-
-def create_confidence_chart(raw_prob):
-    fig, ax = plt.subplots(figsize=(10, 4))
-    scores = [1 - raw_prob, raw_prob]
-    labels = ["No Wildfire", "Wildfire"]
-    colors = ['#2ecc71', '#e74c3c']
-
-    bars = ax.barh(labels, scores, color=colors, alpha=0.8)
-    ax.set_xlim(0, 1)
-    ax.set_xlabel("Probability", fontsize=12, fontweight='bold')
-    ax.set_title("Model Confidence Distribution", fontsize=14, fontweight='bold', pad=20)
-    
-    # Add grid
-    ax.grid(axis='x', alpha=0.3, linestyle='--')
-
-    for i, (bar, v) in enumerate(zip(bars, scores)):
-        ax.text(v + 0.02, i, f"{v*100:.2f}%", 
-                va="center", fontweight='bold', fontsize=11)
-        
-        # Add a marker at 50%
-    ax.axvline(x=0.5, color='gray', linestyle='--', linewidth=2, alpha=0.5)
-    ax.text(0.5, -0.5, 'Decision\nThreshold', ha='center', fontsize=9, alpha=0.7)
-
-    plt.tight_layout()
-    return fig
-
 def show_image_comparison(original, processed):
     """Show original vs processed image"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -369,6 +343,7 @@ def show_image_comparison(original, processed):
 # Sidebar Settings
 # =======================
 st.sidebar.title("⚙️ Settings")
+
 debug_mode = st.sidebar.checkbox("🐛 Debug Mode", value=False, 
                                   help="Show detailed preprocessing and prediction info")
 show_comparison = st.sidebar.checkbox("🖼️ Show Image Comparison", value=False,
@@ -433,10 +408,6 @@ with tab1:
                 
                 # Confidence chart
                 fig = create_confidence_chart(raw_prob)
-                st.pyplot(fig)
-                plt.close()
-
-                fig = create_modern_card(raw_prob, style=selected_viz)
                 st.pyplot(fig)
                 plt.close()
                 
@@ -549,5 +520,3 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
-
-
