@@ -306,7 +306,7 @@ def create_confidence_chart(raw_prob):
                 color='#2c3e50')
     ax_gauge.text(0, -0.1, 'WILDFIRE PROBABILITY', 
                 ha='center', va='center', fontsize=13, fontweight='600',
-                color='#7f8c8d', letterSpacing=2)
+                color='#7f8c8d')
     
     # Pointer/needle
     angle = np.pi * (1 - raw_prob)
@@ -600,4 +600,5 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
+
 
