@@ -92,46 +92,72 @@ except Exception as e:
 
 
 # =======================
-# Image Preprocessing (FIXED)
+# Image Preprocessing (FIXED - Matches Training)
 # =======================
 def preprocess_image(image, debug=False):
     """
-    Preprocess image with multiple normalization options
-    to match training preprocessing
+    Preprocess image to EXACTLY match training preprocessing
+    Uses the same preprocess_input function from Keras applications
     """
     if image is None:
         return None
 
-    # Resize
+    # Resize with LANCZOS (high quality)
     image_resized = image.resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS)
-    img = np.asarray(image_resized).astype("float32")
+    
+    # Convert to array (matches img_to_array behavior)
+    img = img_to_array(image_resized)
     
     if debug:
+        st.sidebar.write("### 🔍 Preprocessing Debug")
         st.sidebar.write(f"Original shape: {img.shape}")
         st.sidebar.write(f"Original range: [{img.min():.2f}, {img.max():.2f}]")
     
-    # Try different preprocessing methods
+    # Select preprocessing based on model architecture
     preprocessing_method = st.sidebar.selectbox(
-        "Preprocessing Method",
-        ["Standard (0-1)", "ImageNet", "Centered (-1 to 1)", "Raw (0-255)"],
-        index=0
+        "🎯 Model Architecture",
+        [
+            "EfficientNetB4 (Default)",
+            "ResNet50/ResNet101/ResNet152",
+            "VGG16/VGG19", 
+            "MobileNetV2",
+            "InceptionV3/Xception",
+            "DenseNet"
+        ],
+        index=0,
+        help="Select the base model architecture used during training"
     )
     
-    if preprocessing_method == "Standard (0-1)":
-        img = img / 255.0
-    elif preprocessing_method == "ImageNet":
-        # ImageNet normalization
-        img = img / 255.0
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-        img = (img - mean) / std
-    elif preprocessing_method == "Centered (-1 to 1)":
-        img = (img / 127.5) - 1.0
-    else:  # Raw
-        img = img  # Keep as 0-255
+    # Apply the correct preprocessing based on architecture
+    if preprocessing_method == "EfficientNetB4 (Default)":
+        # EfficientNet preprocessing: scales to 0-1 range with ImageNet normalization
+        from tensorflow.keras.applications.efficientnet import preprocess_input
+        img = preprocess_input(img)
+    elif preprocessing_method == "ResNet50/ResNet101/ResNet152":
+        # ResNet preprocessing: caffe mode (BGR, mean subtraction, no scaling)
+        from tensorflow.keras.applications.resnet50 import preprocess_input
+        img = preprocess_input(img)
+    elif preprocessing_method == "VGG16/VGG19":
+        # VGG preprocessing: caffe mode (BGR, mean subtraction)
+        from tensorflow.keras.applications.vgg16 import preprocess_input
+        img = preprocess_input(img)
+    elif preprocessing_method == "MobileNetV2":
+        # MobileNetV2: range -1 to 1
+        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+        img = preprocess_input(img)
+    elif preprocessing_method == "InceptionV3/Xception":
+        # Inception/Xception: range -1 to 1
+        from tensorflow.keras.applications.inception_v3 import preprocess_input
+        img = preprocess_input(img)
+    elif preprocessing_method == "DenseNet":
+        # DenseNet: caffe mode
+        from tensorflow.keras.applications.densenet import preprocess_input
+        img = preprocess_input(img)
     
     if debug:
         st.sidebar.write(f"Processed range: [{img.min():.2f}, {img.max():.2f}]")
+        st.sidebar.write(f"Mean: {img.mean():.4f}")
+        st.sidebar.write(f"Std: {img.std():.4f}")
     
     if img.shape != (IMG_SIZE, IMG_SIZE, 3):
         raise ValueError(f"Invalid image shape: {img.shape}")
