@@ -247,6 +247,80 @@ def fetch_sentinel2_image(lat, lon, client_id, client_secret):
 # =======================
 # Enhanced Visualization
 # =======================
+def create_modern_card(raw_prob):
+    """Create a modern card-style visualization"""
+    fig = plt.figure(figsize=(10, 6))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1],
+                          hspace=0.3, wspace=0.3)
+    
+    # Main probability display
+    ax_main = fig.add_subplot(gs[0, :])
+    ax_main.axis('off')
+    
+    # Gradient background
+    gradient = np.linspace(0, 1, 256).reshape(1, -1)
+    ax_main.imshow(gradient, extent=[0, 1, 0, 1], aspect='auto', 
+                   cmap='RdYlGn_r', alpha=0.2)
+    
+    # Probability indicator
+    indicator_x = raw_prob
+    ax_main.axvline(indicator_x, color='black', linewidth=4, ymin=0.2, ymax=0.8)
+    ax_main.plot(indicator_x, 0.5, 'ko', markersize=20)
+    
+    # Percentage text
+    ax_main.text(0.5, 0.7, f'{raw_prob*100:.1f}%', 
+                ha='center', fontsize=40, fontweight='bold')
+    ax_main.text(0.5, 0.3, 'WILDFIRE PROBABILITY', 
+                ha='center', fontsize=14, fontweight='bold', color='gray')
+    
+    ax_main.set_xlim(0, 1)
+    ax_main.set_ylim(0, 1)
+    
+    # Risk level box
+    ax_risk = fig.add_subplot(gs[1, 0])
+    ax_risk.axis('off')
+    
+    if raw_prob < 0.3:
+        risk_level = "LOW"
+        risk_color = "#2ecc71"
+    elif raw_prob < 0.7:
+        risk_level = "MODERATE"
+        risk_color = "#f39c12"
+    else:
+        risk_level = "HIGH"
+        risk_color = "#e74c3c"
+    
+    ax_risk.add_patch(plt.Rectangle((0.1, 0.2), 0.8, 0.6, 
+                                     facecolor=risk_color, alpha=0.3,
+                                     edgecolor=risk_color, linewidth=3))
+    ax_risk.text(0.5, 0.5, risk_level, ha='center', va='center',
+                fontsize=24, fontweight='bold', color=risk_color)
+    ax_risk.text(0.5, 0.15, 'Risk Level', ha='center', va='center',
+                fontsize=10, color='gray')
+    ax_risk.set_xlim(0, 1)
+    ax_risk.set_ylim(0, 1)
+    
+    # Confidence indicator
+    ax_conf = fig.add_subplot(gs[1, 1])
+    ax_conf.axis('off')
+    
+    confidence = max(raw_prob, 1 - raw_prob)
+    conf_color = "#3498db"
+    
+    ax_conf.add_patch(plt.Rectangle((0.1, 0.2), 0.8, 0.6, 
+                                     facecolor=conf_color, alpha=0.3,
+                                     edgecolor=conf_color, linewidth=3))
+    ax_conf.text(0.5, 0.5, f'{confidence*100:.0f}%', ha='center', va='center',
+                fontsize=24, fontweight='bold', color=conf_color)
+    ax_conf.text(0.5, 0.15, 'Model Confidence', ha='center', va='center',
+                fontsize=10, color='gray')
+    ax_conf.set_xlim(0, 1)
+    ax_conf.set_ylim(0, 1)
+    
+    plt.tight_layout()
+    return fig
+
+
 def create_confidence_chart(raw_prob):
     fig, ax = plt.subplots(figsize=(10, 4))
     scores = [1 - raw_prob, raw_prob]
@@ -361,6 +435,10 @@ with tab1:
                 fig = create_confidence_chart(raw_prob)
                 st.pyplot(fig)
                 plt.close()
+
+                fig = create_moderncard(raw_prob, style=selected_viz)
+                st.pyplot(fig)
+                plt.close()
                 
                 # Image comparison
                 if show_comparison:
@@ -471,3 +549,4 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
+
