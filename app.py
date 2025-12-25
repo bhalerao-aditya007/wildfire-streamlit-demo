@@ -9,16 +9,6 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from tensorflow.keras.preprocessing.image import img_to_array
 import gdown
-from sentinelhub import (
-    SHConfig,
-    SentinelHubRequest,
-    DataCollection,
-    bbox_to_dimensions,
-    BBox,
-    CRS,
-    MimeType
-)
-
 # =======================
 # Page Configuration
 # =======================
@@ -123,6 +113,15 @@ def predict(image_array):
 # Sentinel-2 Fetch
 # =======================
 def fetch_sentinel2_image(lat, lon, client_id, client_secret):
+    from sentinelhub import (
+    SHConfig,
+    SentinelHubRequest,
+    DataCollection,
+    bbox_to_dimensions,
+    BBox,
+    CRS,
+    MimeType
+    )
     config = SHConfig()
     config.sh_client_id = client_id
     config.sh_client_secret = client_secret
@@ -230,3 +229,4 @@ with tab3:
     **Educational wildfire detection system using Sentinel-2 imagery and deep learning.**
     Not for emergency decision-making.
     """)
+
