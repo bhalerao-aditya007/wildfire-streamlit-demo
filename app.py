@@ -82,22 +82,19 @@ except Exception as e:
 # =======================
 @st.cache_resource
 def initialize_earth_engine():
-    """Initialize Earth Engine without requiring authentication"""
+    """Initialize Earth Engine with Streamlit secrets"""
     try:
-        ee.Initialize()
+        # Get credentials from Streamlit secrets
+        credentials_json = st.secrets["GOOGLE_CREDENTIALS_JSON"]
+        credentials = ee.ServiceAccountCredentials.from_json_keyfile_dict(
+            json.loads(credentials_json)
+        )
+        ee.Initialize(credentials, project=st.secrets["GCP_PROJECT"])
         return True, None
     except Exception as e:
-        # Use high-volume endpoint for unauthenticated access
-        try:
-            ee.Initialize(opt_url='https://earthengine-highriseapps.appspot.com')
-            return True, None
-        except Exception as e2:
-            return False, str(e2)
+        st.error(f"❌ Earth Engine setup failed: {e}")
+        return False, str(e)
 
-ee_initialized, ee_error = initialize_earth_engine()
-
-if not ee_initialized:
-    st.warning(f"⚠️ Earth Engine initialization issue: {ee_error}")
 
 # =======================
 # Earth Engine Cloud-Free Image Fetching
@@ -537,3 +534,4 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
