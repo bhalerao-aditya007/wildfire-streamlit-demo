@@ -7,3 +7,4 @@ matplotlib
 gdown
 requests
 sentinelhub
+earthengine-api
