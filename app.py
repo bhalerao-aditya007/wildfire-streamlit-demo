@@ -366,22 +366,68 @@ tab1, tab2, tab3 = st.tabs(["🛰️ Sentinel-2 Analysis", "📤 Upload Image", 
 # =======================
 # TAB 1 — Sentinel-2
 # =======================
+# ======================= 
+# TAB 1 — Sentinel-2 
+# ======================= 
 with tab1:
     st.subheader("Real-time Satellite Analysis")
     
+    # Credentials
     col1, col2 = st.columns(2)
-    
     with col1:
-        client_id = st.text_input("Sentinel Hub Client ID", type="password",
+        client_id = st.text_input("Sentinel Hub Client ID", type="password", 
                                    help="Get your credentials at https://www.sentinel-hub.com/")
-        lat = st.number_input("Latitude", value=21.1, step=0.1, format="%.4f")
-        
     with col2:
         client_secret = st.text_input("Sentinel Hub Client Secret", type="password")
-        lon = st.number_input("Longitude", value=79.0, step=0.1, format="%.4f")
-
+    
+    st.markdown("---")
+    st.markdown("### 📍 Enter Coordinates")
+    
+    # Coordinates with N/S/E/W
+    col1, col2, col3, col4 = st.columns([3, 1, 3, 1])
+    
+    with col1:
+        lat_value = st.number_input(
+            "Latitude", 
+            value=21.1, 
+            min_value=0.0,
+            max_value=90.0,
+            step=0.1, 
+            format="%.4f",
+            help="Enter latitude value (0-90)"
+        )
+    
+    with col2:
+        lat_dir = st.selectbox(
+            "Direction",
+            ["N", "S"],
+            key="lat_dir",
+            help="North or South"
+        )
+    
+    with col3:
+        lon_value = st.number_input(
+            "Longitude", 
+            value=79.0,
+            min_value=0.0,
+            max_value=180.0,
+            step=0.1, 
+            format="%.4f",
+            help="Enter longitude value (0-180)"
+        )
+    
+    with col4:
+        lon_dir = st.selectbox(
+            "Direction ",
+            ["E", "W"],
+            key="lon_dir",
+            help="East or West"
+        )
+    lat = lat_value if lat_dir == "N" else -lat_value
+    lon = lon_value if lon_dir == "E" else -lon_value
+    st.info(f"📍 Final Coordinates: **{lat_value}°{lat_dir}, {lon_value}°{lon_dir}** (Decimal: {lat:.4f}, {lon:.4f})")
+    
     if st.button("🔍 Fetch & Analyze", type="primary", use_container_width=True):
-        if not model:
             st.error("❌ Model not loaded. Please check the sidebar for errors.")
         elif not client_id or not client_secret:
             st.warning("⚠️ Please provide Sentinel Hub credentials")
@@ -521,6 +567,7 @@ st.markdown("""
     <p style='font-size: 0.9em;'>Cloud presence depends on acquisition date • Educational use only</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
