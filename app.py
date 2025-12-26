@@ -79,21 +79,26 @@ except Exception as e:
     model = None
 
 # =======================
-# Earth Engine Initialization (CLOUD-SAFE)
+# Earth Engine Initialization
 # =======================
 @st.cache_resource
 def initialize_earth_engine():
     """Initialize Earth Engine with Streamlit secrets"""
     try:
-        # Get credentials from Streamlit secrets
-        credentials_json = st.secrets["GOOGLE_CREDENTIALS_JSON"]
-        credentials = ee.ServiceAccountCredentials(None, key_data=json.loads(credentials_json))
+        # Get credentials from Streamlit secrets as dictionary
+        credentials_dict = st.secrets["GOOGLE_CREDENTIALS_JSON"]
+        
+        # Create service account credentials
+        credentials = ee.ServiceAccountCredentials(
+            email=credentials_dict["client_email"],
+            key_data=credentials_dict["private_key"]
+        )
+        
         ee.Initialize(credentials, project=st.secrets["GCP_PROJECT"])
         return True, None
     except Exception as e:
         st.error(f"❌ Earth Engine setup failed: {e}")
         return False, str(e)
-ee_initialized, ee_error = initialize_earth_engine()
 
 # =======================
 # Earth Engine Cloud-Free Image Fetching
@@ -533,6 +538,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
