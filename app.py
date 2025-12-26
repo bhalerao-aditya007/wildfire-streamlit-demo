@@ -181,8 +181,7 @@ def fetch_cloud_free_image(lat, lon, days_back=30):
         # Convert to PIL Image
         img_data = Image.open(io.BytesIO(response.content)).convert('RGB')
         
-        image_info = f"Sentinel-2 L2A • Cloud-Free • {(1-datetime.now().isoformat()).split('T')[0]}"
-        
+        image_info = f"Sentinel-2 L2A • Cloud-Free • {datetime.now().isoformat().split('T')[0]}"
         return img_data, image_info
         
     except Exception as e:
@@ -541,6 +540,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
