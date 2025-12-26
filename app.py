@@ -165,10 +165,11 @@ def fetch_cloud_free_image(lat, lon, days_back=30):
         image = image.select(['B4', 'B3', 'B2'])
         
         # Get thumbnail URL with proper parameters
+
         thumbnail_url = image.getThumbURL({
             'min': 0,
             'max': 3000,
-            'size': [224, 224],
+            'dimensions': 224,
             'region': roi,
             'format': 'png'
         })
@@ -540,6 +541,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
