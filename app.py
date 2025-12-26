@@ -100,6 +100,8 @@ def initialize_earth_engine():
         st.error(f"❌ Earth Engine setup failed: {e}")
         return False, str(e)
 
+# Call the initialization function
+ee_initialized, ee_error = initialize_earth_engine()
 # =======================
 # Earth Engine Cloud-Free Image Fetching
 # =======================
@@ -538,6 +540,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
