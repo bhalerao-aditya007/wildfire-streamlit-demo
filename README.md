@@ -17,8 +17,7 @@ https://wildfire-app-demo-pxdbsx8tvysk54gpsnczo2.streamlit.app/
 - Binary image classification:
   - **Wildfire**
   - **No Wildfire**
-- Trained using a Convolutional Neural Network (CNN)
-- Input image size: **224 × 224**
+- Trained using a EfficientNetB4 model
 - Output: probability score + class prediction
 - Model format: `.keras`
 
@@ -52,4 +51,5 @@ Clone the repository:
 ```bash
 git clone https://github.com/your-username/wildfire-detection-app.git
 cd wildfire-detection-app
+
 
