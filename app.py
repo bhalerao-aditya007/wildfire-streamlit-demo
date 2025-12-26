@@ -87,7 +87,7 @@ def initialize_earth_engine():
     try:
         # Get credentials from Streamlit secrets
         credentials_json = st.secrets["GOOGLE_CREDENTIALS_JSON"]
-        credentials = ee.ServiceAccountCredentials(None, key_data=credentials_json)
+        credentials = ee.ServiceAccountCredentials(None, key_data=json.loads(credentials_json))
         ee.Initialize(credentials, project=st.secrets["GCP_PROJECT"])
         return True, None
     except Exception as e:
@@ -533,6 +533,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
