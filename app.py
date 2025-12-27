@@ -333,8 +333,8 @@ def display_results(image, label, confidence, stats, show_comparison_flag, image
 # =======================
 # Main UI
 # =======================
-st.markdown('<p class="main-header">🔥 Wildfire Detection System</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">AI-powered wildfire detection using cloud-free satellite imagery (Google Earth Engine)</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🔥 Wildfire Detection System</h1>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">AI-powered wildfire detection fetching satellite imagery via Google Earth</p>', unsafe_allow_html=True)
 
 # Settings in expander
 with st.expander("⚙️ Settings"):
@@ -540,6 +540,7 @@ st.markdown("""
     🌤️ Automatic Cloud-Free Imagery | Educational use only • Not for emergency decision-making
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
