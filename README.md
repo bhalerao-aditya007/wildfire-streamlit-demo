@@ -1,55 +1,72 @@
 # 🔥 Wildfire Detection Web App
 
-A deep learning–based web application that detects the presence of wildfires in images.  
-Built using **TensorFlow**, this app allows users to upload an image and receive a prediction along with confidence scores.
+An AI-powered web application for **early wildfire detection** using **satellite imagery** and **deep learning**.
+
+Built in response to the growing impact of large-scale wildfires, highlighted by the **2023 Canadian wildfire season**, which caused severe air-quality emergencies across North America.
+
+---
+
+## 🌍 Motivation
+
+In **2023**, wildfire smoke from Canada traveled over **800 km**, turning skies orange and pushing cities like **New York** to some of the worst air-quality levels in the world.
+
+Wildfires don’t announce themselves.  
+By the time flames are visible, response time is already limited.
+
+This project focuses on **early, reliable wildfire detection** using AI.
 
 ---
 
 ## 🚀 Live Demo
 
-👉 **Try the app here:**  
-https://wildfire-app-demo-pxdbsx8tvysk54gpsnczo2.streamlit.app/
+👉 https://wildfire-app-demo-pxdbsx8tvysk54gpsnczo2.streamlit.app/
 
 ---
 
 ## 🧠 Model Overview
 
-- Binary image classification:
-  - **Wildfire**
-  - **No Wildfire**
-- Trained using a EfficientNetB4 model
-- Output: probability score + class prediction
-- Model format: `.keras`
-
-> The trained model is hosted on Google Drive and downloaded at runtime to avoid GitHub size limits.
+- **Task**: Binary image classification  
+  - Wildfire  
+  - No Wildfire
+- **Architecture**: EfficientNetB4 (transfer learning)
+- **Input**: 224 × 224 satellite images
+- **Output**: Probability score + prediction
+- **Model format**: `.keras`
 
 ---
 
-## 🖼️ Features
+## 📊 Performance
 
-- 📤 Image upload (JPG, JPEG, PNG, BMP, GIF)
-- 🔍 Real-time inference
-- 📊 Confidence score visualization
-- ⚡ Lightweight, fast, and CPU-compatible
-- ☁️ Deployed on Streamlit Cloud
+- **Accuracy**: 95.22%  
+- **AUC-ROC**: 0.989  
+
+---
+
+## 🖼️ App Features
+
+- 📤 Image upload  
+- 🔍 Real-time inference  
+- 📊 Confidence-based risk output  
+- ⚡ Fast, CPU-compatible  
+- ☁️ Deployed on Streamlit Cloud  
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend / UI**: Streamlit  
-- **Deep Learning**: TensorFlow / Keras  
-- **Image Processing**: Pillow  
-- **Visualization**: Matplotlib  
-- **Model Hosting**: Google Drive (`gdown`)
+- TensorFlow / Keras  
+- EfficientNetB4  
+- Sentinel-2 satellite imagery  
+- Google Earth Engine  
+- Streamlit  
+- Python, NumPy, Matplotlib  
 
 ---
 
-## 📦 Installation (Local Setup)
+## 📦 Local Setup
 
-Clone the repository:
 ```bash
-git clone https://github.com/your-username/wildfire-detection-app.git
-cd wildfire-detection-app
-
-
+git clone https://github.com/bhalerao-aditya007/wildfire-streamlit-demo
+cd wildfire-streamlit-demo
+pip install -r requirements.txt
+streamlit run app.py
